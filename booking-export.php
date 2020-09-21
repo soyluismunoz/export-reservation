@@ -67,7 +67,7 @@ $title = [$title, $description, $fullTime];
 
 $pdf = new PDF();
 $pdf->AliasNbPages();
-$pdf->SetTitle($title);
+//$pdf->SetTitle($title);
 $pdf->AddPage();
 $pdf->SetFont('Arial', '', 6);
 foreach($resQuery as $d){

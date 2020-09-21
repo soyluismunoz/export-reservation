@@ -1,339 +1,227 @@
-<?php
-/**
- * List Table API: WP_Links_List_Table class
- *
- * @package WordPress
- * @subpackage Administration
- * @since 3.1.0
- */
+<?php 
+if( ! class_exists( 'WP_List_Table' ) ) {
+    require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
+}
 
-/**
- * Core class used to implement displaying links in a list table.
- *
- * @since 3.1.0
- * @access private
- *
- * @see WP_List_Tsble
- */
-class WP_Links_List_Table extends WP_List_Table {
+class booking_list_assistant extends WP_List_Table
+{
+    //put your code here
+    var $date = "";
+    var $time = "";
 
-	/**
-	 * Constructor.
-	 *
-	 * @since 3.1.0
-	 *
-	 * @see WP_List_Table::__construct() for more information on default arguments.
-	 *
-	 * @param array $args An associative array of arguments.
-	 */
-	public function __construct( $args = array() ) {
-		parent::__construct(
-			array(
-				'plural' => 'bookmarks',
-				'screen' => isset( $args['screen'] ) ? $args['screen'] : null,
-			)
-		);
-	}
+    public function booking_list_assistant($dated, $timed)
+    {
+        parent::__construct();
+        $this->date = $dated;
+        $this->time = $timed;
+    }
 
-	/**
-	 * @return bool
-	 */
-	public function ajax_user_can() {
-		return current_user_can( 'manage_links' );
-	}
 
-	/**
-	 * @global int    $cat_id
-	 * @global string $s
-	 * @global string $orderby
-	 * @global string $order
-	 */
-	public function prepare_items() {
-		global $cat_id, $s, $orderby, $order;
+    function column_nombre($item) {
+        $actions = array(
+            'edit'      => sprintf('<a href="?page=edit-temp&id=' . $item['id'] . '&fecha='. $_GET['fecha'] .'&hora='. $_GET['hora'] .'&temp='. $item['temperatura'] .' ">Editar</a>',$_REQUEST['page'],'edit',$item['id'] )
+        );
 
-		wp_reset_vars( array( 'action', 'cat_id', 'link_id', 'orderby', 'order', 's' ) );
+        return sprintf('%1$s %2$s', $item['nombre'], $this->row_actions( $actions ) );
+    }
 
-		$args = array(
-			'hide_invisible' => 0,
-			'hide_empty'     => 0,
-		);
+    /**
+     * Prepare the items for the table to process
+     *
+     * @return Void
+     */
+    public function prepare_items()
+    {
+        $columns = $this->get_columns();
+        $hidden = $this->get_hidden_columns();
+        $sortable = $this->get_sortable_columns();
 
-		if ( 'all' !== $cat_id ) {
-			$args['category'] = $cat_id;
-		}
-		if ( ! empty( $s ) ) {
-			$args['search'] = $s;
-		}
-		if ( ! empty( $orderby ) ) {
-			$args['orderby'] = $orderby;
-		}
-		if ( ! empty( $order ) ) {
-			$args['order'] = $order;
-		}
+        $data = $this->table_data();
 
-		$this->items = get_bookmarks( $args );
-	}
+        if ($data) {
+        	usort( $data, array( &$this, 'sort_data' ) );
+        	$totalItems = count($data);
+        }else{
+        	$totalItems = 0;
+        }
 
-	/**
-	 */
-	public function no_items() {
-		_e( 'No links found.' );
-	}
+        $perPage = 30;
+        $currentPage = $this->get_pagenum();
+        
 
-	/**
-	 * @return array
-	 */
-	protected function get_bulk_actions() {
-		$actions           = array();
-		$actions['delete'] = __( 'Delete' );
+        $this->set_pagination_args( array(
+            'total_items' => $totalItems,
+            'per_page'    => $perPage
+        ) );
 
-		return $actions;
-	}
+        if ($data) {
+        	$data = array_slice($data,(($currentPage-1)*$perPage),$perPage);
+    	}
+    	
+        $this->_column_headers = array($columns, $hidden, $sortable);
+        $this->items = $data;
+    }
 
-	/**
-	 * @global int $cat_id
-	 * @param string $which
-	 */
-	protected function extra_tablenav( $which ) {
-		global $cat_id;
+    /**
+     * Override the parent columns method. Defines the columns to use in your listing table
+     *
+     * @return Array
+     */
+    public function get_columns()
+    {
+        $columns = array(
+            'id'            => 'id',
+            'nombre'        => 'nombre',
+            'telefono'      => 'telefono',
+            'email'         => 'email',
+            'direccion'     => 'direccion',
+            'edad'          => 'edad',
+            'pasaporte'     => 'pasaporte',
+            'temperatura'   => 'temperatura'
+        );
 
-		if ( 'top' !== $which ) {
-			return;
-		}
-		?>
-		<div class="alignleft actions">
-			<?php
-			$dropdown_options = array(
-				'selected'        => $cat_id,
-				'name'            => 'cat_id',
-				'taxonomy'        => 'link_category',
-				'show_option_all' => get_taxonomy( 'link_category' )->labels->all_items,
-				'hide_empty'      => true,
-				'hierarchical'    => 1,
-				'show_count'      => 0,
-				'orderby'         => 'name',
-			);
+        return $columns;
+    }
 
-			echo '<label class="screen-reader-text" for="cat_id">' . __( 'Filter by category' ) . '</label>';
-			wp_dropdown_categories( $dropdown_options );
-			submit_button( __( 'Filter' ), '', 'filter_action', false, array( 'id' => 'post-query-submit' ) );
-			?>
-		</div>
-		<?php
-	}
+    /**
+     * Define which columns are hidden
+     *
+     * @return Array
+     */
+    public function get_hidden_columns()
+    {
+        return array();
+    }
 
-	/**
-	 * @return array
-	 */
-	public function get_columns() {
-		return array(
-			'cb'         => '<input type="checkbox" />',
-			'name'       => _x( 'Name', 'link name' ),
-			'url'        => __( 'URL' ),
-			'categories' => __( 'Categories' ),
-			'rel'        => __( 'Relationship' ),
-			'visible'    => __( 'Visible' ),
-			'rating'     => __( 'Rating' ),
-		);
-	}
+    /**
+     * Define the sortable columns
+     *
+     * @return Array
+     */
+    public function get_sortable_columns()
+    {
+        return array('nombre' => array('nombre', false));
+    }
 
-	/**
-	 * @return array
-	 */
-	protected function get_sortable_columns() {
-		return array(
-			'name'    => 'name',
-			'url'     => 'url',
-			'visible' => 'visible',
-			'rating'  => 'rating',
-		);
-	}
+    /**
+     * Get the table data
+     *
+     * @return Array
+     */
+    private function table_data()
+    {   
+        global $wpdb;
+        $date = $this->date;
+        $time = $this->time;
+        $s = $_GET['s'];
+        $pas = $_GET['pas'];
 
-	/**
-	 * Get the name of the default primary column.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @return string Name of the default primary column, in this case, 'name'.
-	 */
-	protected function get_default_primary_column_name() {
-		return 'name';
-	}
+        $appointment = $wpdb->prefix . 'amelia_appointments';
+        $booking = $wpdb->prefix . 'amelia_customer_bookings';
+        $user = $wpdb->prefix . 'amelia_users';
 
-	/**
-	 * Handles the checkbox column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_cb( $link ) {
-		?>
-		<label class="screen-reader-text" for="cb-select-<?php echo $link->link_id; ?>">
-			<?php
-			/* translators: %s: Link name. */
-			printf( __( 'Select %s' ), $link->link_name );
-			?>
-		</label>
-		<input type="checkbox" name="linkcheck[]" id="cb-select-<?php echo $link->link_id; ?>" value="<?php echo esc_attr( $link->link_id ); ?>" />
-		<?php
-	}
+        $query = " SELECT $booking.`id`, `bookingStart`,`bookingEnd`, `customFields`, `info`, `email` FROM $appointment, $booking, $user WHERE $appointment.`ID` = $booking.`appointmentId` AND $booking.`customerId` = $user.`id` AND `bookingStart` LIKE '%$date $time%' AND `firstName` LIKE '%$s%' AND `customFields` LIKE '%$pas%' ORDER BY $booking.`customerId` ASC  ";
 
-	/**
-	 * Handles the link name column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_name( $link ) {
-		$edit_link = get_edit_bookmark_link( $link );
-		printf(
-			'<strong><a class="row-title" href="%s" aria-label="%s">%s</a></strong>',
-			$edit_link,
-			/* translators: %s: Link name. */
-			esc_attr( sprintf( __( 'Edit &#8220;%s&#8221;' ), $link->link_name ) ),
-			$link->link_name
-		);
-	}
+        $resQuery =  $wpdb->get_results($query);
 
-	/**
-	 * Handles the link URL column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_url( $link ) {
-		$short_url = url_shorten( $link->link_url );
-		echo "<a href='$link->link_url'>$short_url</a>";
-	}
+        foreach ($resQuery as $b) {
+            $customFields = json_decode($b->customFields);
+            $info = json_decode($b->info);
 
-	/**
-	 * Handles the link categories column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @global int $cat_id
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_categories( $link ) {
-		global $cat_id;
+            foreach ($customFields as $c) { 
 
-		$cat_names = array();
-		foreach ( $link->link_category as $category ) {
-			$cat = get_term( $category, 'link_category', OBJECT, 'display' );
-			if ( is_wp_error( $cat ) ) {
-				echo $cat->get_error_message();
-			}
-			$cat_name = $cat->name;
-			if ( (int) $cat_id !== $category ) {
-				$cat_name = "<a href='link-manager.php?cat_id=$category'>$cat_name</a>";
-			}
-			$cat_names[] = $cat_name;
-		}
-		echo implode( ', ', $cat_names );
-	}
+                if ($c->label == "Direccion") {
+                    $direccion = $c->value;
+                }
 
-	/**
-	 * Handles the link relation column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_rel( $link ) {
-		echo empty( $link->link_rel ) ? '<br />' : $link->link_rel;
-	}
+                if ($c->label == "CC/CE/PASAPORTE") {
+                    $pasaporte = $c->value;
+                }
 
-	/**
-	 * Handles the link visibility column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_visible( $link ) {
-		if ( 'Y' === $link->link_visible ) {
-			_e( 'Yes' );
-		} else {
-			_e( 'No' );
-		}
-	}
+                if ($c->label == "Edad") {
+                    $edad = $c->value;
+                }
 
-	/**
-	 * Handles the link rating column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link The current link object.
-	 */
-	public function column_rating( $link ) {
-		echo $link->link_rating;
-	}
+                if ($c->label == "Temperatura") {
+                    $temperatura = $c->value;
+                }        
+            }
 
-	/**
-	 * Handles the default column output.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link        Link object.
-	 * @param string $column_name Current column name.
-	 */
-	public function column_default( $link, $column_name ) {
-		/**
-		 * Fires for each registered custom link column.
-		 *
-		 * @since 2.1.0
-		 *
-		 * @param string $column_name Name of the custom column.
-		 * @param int    $link_id     Link ID.
-		 */
-		do_action( 'manage_link_custom_column', $column_name, $link->link_id );
-	}
+            $data[] = array(
+                'id'            =>  $b->id,
+                'nombre'        =>  "{$info->firstName} {$info->lastName}",
+                'telefono'      =>  $info->phone,
+                'email'         =>  $b->email,
+                'direccion'     =>  $direccion,
+                'edad'          =>  $edad,
+                'pasaporte'     =>  $pasaporte,
+                'temperatura'   =>  $temperatura
+            );
+            
+        }        
+        return $data;
+    }
 
-	public function display_rows() {
-		foreach ( $this->items as $link ) {
-			$link                = sanitize_bookmark( $link );
-			$link->link_name     = esc_attr( $link->link_name );
-			$link->link_category = wp_get_link_cats( $link->link_id );
-			?>
-		<tr id="link-<?php echo $link->link_id; ?>">
-			<?php $this->single_row_columns( $link ); ?>
-		</tr>
-			<?php
-		}
-	}
+    /**
+     * Define what data to show on each column of the table
+     *
+     * @param  Array $item        Data
+     * @param  String $column_name - Current column name
+     *
+     * @return Mixed
+     */
+    public function column_default( $item, $column_name )
+    {
+        switch( $column_name ) {
+            case 'id':
+            case 'nombre':
+            case 'telefono':
+            case 'email':
+            case 'direccion':
+            case 'edad':
+            case 'pasaporte':
+            case 'temperatura':
+                return $item[ $column_name ];
 
-	/**
-	 * Generates and displays row action links.
-	 *
-	 * @since 4.3.0
-	 *
-	 * @param object $link        Link being acted upon.
-	 * @param string $column_name Current column name.
-	 * @param string $primary     Primary column name.
-	 * @return string Row actions output for links, or an empty string
-	 *                if the current column is not the primary column.
-	 */
-	protected function handle_row_actions( $link, $column_name, $primary ) {
-		if ( $primary !== $column_name ) {
-			return '';
-		}
+            default:
+                return print_r( $item, true ) ;
+        }
+    }
 
-		$edit_link = get_edit_bookmark_link( $link );
+    /**
+     * Allows you to sort the data by the variables set in the $_GET
+     *
+     * @return Mixed
+     */
+    private function sort_data( $a, $b )
+    {
+        // Set defaults
+        $orderby = 'nombre';
+        $order = 'asc';
 
-		$actions           = array();
-		$actions['edit']   = '<a href="' . $edit_link . '">' . __( 'Edit' ) . '</a>';
-		$actions['delete'] = sprintf(
-			'<a class="submitdelete" href="%s" onclick="return confirm( \'%s\' );">%s</a>',
-			wp_nonce_url( "link.php?action=delete&amp;link_id=$link->link_id", 'delete-bookmark_' . $link->link_id ),
-			/* translators: %s: Link name. */
-			esc_js( sprintf( __( "You are about to delete this link '%s'\n  'Cancel' to stop, 'OK' to delete." ), $link->link_name ) ),
-			__( 'Delete' )
-		);
+        // If orderby is set, use this as the sort column
+        if(!empty($_GET['orderby']))
+        {
+            $orderby = $_GET['orderby'];
+        }
 
-		return $this->row_actions( $actions );
-	}
+        // If order is set use this as the order
+        if(!empty($_GET['order']))
+        {
+            $order = $_GET['order'];
+        }
+
+        $result = strcmp( $a[$orderby], $b[$orderby] );
+
+        if($order === 'asc')
+        {
+            return $result;
+        }
+
+        return -$result;
+    }
+
+    function no_items() {
+        _e( 'No hay reservas en esta fecha' );
+    }
 }

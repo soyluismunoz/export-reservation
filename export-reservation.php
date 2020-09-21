@@ -19,6 +19,8 @@
 */
 ini_set("session.auto_start", 0);
 
+require_once('class-list-table.php');
+
 function boot_session() {
   session_start();
 }
@@ -35,143 +37,107 @@ function exportReservationMenu() {
 			        'export',
 			        'get_data'
 				);
+	add_submenu_page( 'export',
+                    __( 'Editar', 'export-wp' ),
+                    __( 'Editar', 'export-wp' ), 
+                   'wpamelia-manager', 
+                   'edit-temp',
+                   'edit_temp'
+                );
 }
 
 function get_data() {
 	global $wpdb;
 
-
-	$fecha =	$_POST['fecha'];
-	$hora = $_POST['hora'];
-	$IdToUpdate = $_POST['id'];
-	$NewTemp = $_POST['temp'];
+	$date = date("Y-m-d", strtotime($_GET['fecha']));
+	$time = date('H', strtotime($_GET['hora']));
+	$time = $time + 5;
+	$fecha = $_GET['fecha'];
+	$hora = $_GET['hora'];
 ?>
 	<link rel="stylesheet" href="/wp-content/plugins/export-reservation/assets/style.css">
-	<form method='post' action='?page=export'>
+	
+	<div class="wrap">
+		<form method='get'>
 
-		<h2>Exportar Reservaciones</h2>
+			<h2>Exportar Reservaciones</h2>
+			<input type="hidden" name="page" value="<?php echo $_GET['page'];?>" />
+			<label for='date'> Dia</label>
+			<input type='date' name='fecha' id='date' required>
+
+			<label for='time'> Hora</label>
+			<input type='time' name='hora' id='time' required>
+
+			<?php echo submit_button('Enviar');?>
+		 	<p class="submit">
+		 		<a class='button button-success' href='/wp-admin/admin.php?page=export'>
+			 		Limpiar
+			 	</a>
+		 		<a class='button button-success' target='_blank' href='/wp-content/plugins/export-reservation/booking-export.php<?php echo "?date=$fecha&time=$hora";?>'>
+			 		Exportar reservaciones
+			 	</a>
+		 	</p>
+		</form>
 		
-		<label for='date'> Dia</label>
-		<input type='date' name='fecha' id='date' required>
-
-		<label for='time'> Hora</label>
-		<input type='time' name='hora' id='time' required>
-
-		<?php echo submit_button('Enviar');?>
-	</form>
-
-<?php
-	$blogName = get_bloginfo('name');
-	
-	if ($fecha && $hora) {
-	?>
-		 <hr> 
-		 <p class='submit'> 
-		 	<a class='button button-success' target='_blank' href='/wp-content/plugins/export-reservation/booking-export.php<?php echo "?date=$fecha&time=$hora";?>'>
-		 		Exportar reservaciones
-		 	</a>
-		 </p>
-
+		<form  method="get">
+  			<input type="hidden" name="page" value="export" />
+  			<input type='hidden' name='fecha' value="<?php echo $_GET['fecha'];?>">
+			<input type='hidden' name='hora' value="<?php echo $_GET['hora'];?>">
+			<input type='text' name='pas' placeholder='pasaporte/cc/ci' value='<?php echo $_GET['pas'];?>'>
+			<?php
+				$listBooking = new booking_list_assistant($date, $time);
+			    $listBooking->prepare_items();
+			    $listBooking->search_box('buscar', 'search_nombre');
+				echo $listBooking->display();
+			?>
+		</form>
+	</div>
 	<?php
-		$date = date("Y-m-d", strtotime($_POST['fecha']));
-		$time = date('H', strtotime($_POST['hora']));
-		$time = $time + 5;
-
-		$appointment = $wpdb->prefix . 'amelia_appointments';
-		$booking = $wpdb->prefix . 'amelia_customer_bookings';
-		$user = $wpdb->prefix . 'amelia_users';
-
-		$query = " SELECT $booking.`id`, `bookingStart`,`bookingEnd`, `customFields`, `info`, `email` FROM $appointment, $booking, $user WHERE $appointment.`ID` = $booking.`appointmentId` AND $booking.`customerId` = $user.`id` AND `bookingStart` LIKE '%$date $time%' ORDER BY $booking.`customerId` ASC  ";
-
-		$resQuery =  $wpdb->get_results($query);
-	?>
-
-	
-
-		<ul>
-			<?php foreach ($resQuery as $b) {
-				$customFields = json_decode($b->customFields);
-				$info = json_decode($b->info);
-			?>
-				<li>
-					<b>Nombre:</b> <?php echo "{$info->firstName} {$info->lastName}";?>
-				</li>
-				<li>
-					<b>Telefono:</b> <?php echo  $info->phone;?>
-				</li>
-				<li>
-					<b>Email:</b> <?php echo  $b->email;?>
-				</li>
-				<?php foreach ($customFields as $c) { 
-
-					if ($c->label == "Direccion") {
-						echo "<li><b>Dirección:</b> $c->value</li>";
-					}
-
-					if ($c->label == "CC/CE/PASAPORTE") {
-						echo "<li><b>CC/CE/PASAPORTE:</b> $c->value</li>";
-					}
-
-					if ($c->label == "Edad") {
-						echo "<li><b>Edad:</b> $c->value</li>";
-					}
-
-					if ($c->label == "Temperatura") {
-						$temperatura = $c->value;
-					?>
-
-						<li>
-							<b>Temperatura:</b> 
-							<?php
-								if($IdToUpdate ==  $b->id){  
-									echo $NewTemp; 
-								}else{ 
-									echo $c->value;
-								}
-							?>
-						</li>
-					<?php
-					}
-					
-				} ?>
-			<p class='submit'> 
-				<a class="thickbox button button-primary btn" href="#open-modal-<?php echo $b->id;?>">
-					Actualizar Temperatura
-				</a>
-			</p>
-
-			<div id="open-modal-<?php echo $b->id;?>" class="modal-window">
-				<div>
-					<a href="#" title="Close" class="modal-close">Cerrar</a>
-					<h1>Agregar temperatura</h1>
-				    <form action="?page=export" method="post">
-				    	<label for='temp'> Temperatura </label>
-						<input type='number' step="0.1" name='temp' id='temp'>
-						<!--<input type="hidden" value="<?php echo $temperatura; ?>" name="curerentTemp">-->
-						<input type="hidden" value="<?php echo $b->id; ?>" name="id">
-						<input type="hidden" name="fecha" value="<?php echo $fecha; ?>">
-						<input type="hidden" name="hora" value="<?php echo $hora;?>">
-						<!--<input type="hidden" value="<?php echo json_encode($customFields); ?>" name="booking">-->
-						<?php echo submit_button('Actualizar');?>
-				    </form>
-				</div>
-		    </div>
-
-			<?php 
-				if ($IdToUpdate ==  $b->id) {
-					updateBooking($b->id, $temperatura, $NewTemp, json_encode($customFields));
-				}
-			?>
-
-			 <hr>
-			<?php } ?>
-		</ul>
-
-<?php	
-	}
 }
 
-function updateBooking($id, $currentTemp, $temp, $booking){
+
+function edit_temp(){
+	global $wpdb;
+
+	$id = $_GET['id'];
+	$fecha = $_GET['fecha'];
+	$hora = $_GET['hora'];
+	$temperatura = $_GET['temp'];
+	$newTemp = $_POST['newTemp'];
+
+	$table = $wpdb->prefix . 'amelia_customer_bookings';
+	
+	$getCustomField = "SELECT `customFields` FROM $table WHERE `id` = $id LIMIT 1";
+	$getCustomField = $wpdb->get_results($getCustomField);
+
+	if ($newTemp) {
+
+		$update = str_replace('"Temperatura","value":"'. $temperatura .'"', '"Temperatura","value":"' . $newTemp . '"', $getCustomField[0]->customFields);
+		$queryUpdate = "UPDATE $table SET `customFields` = '$update' WHERE $table.`id` = $id";
+		$queryUpdate = $wpdb->get_results($queryUpdate);
+
+		$temperatura = $newTemp;
+		?> 
+			Temperatura actualizada. <a href="<?php echo get_site_url() . "/wp-admin/admin.php?page=export&fecha={$fecha}&hora={$hora}";?>">Regresar</a>
+		<?php
+	}
+?>
+	<h2>Editar Temperatura</h2>
+	<form method="post">
+    	<label for='temp'> Temperatura </label>
+		<input type='number' step="0.1" name='newTemp' id='newTemp' value="<?php echo $temperatura; ?>">
+		<input type="hidden" value="<?php echo $temperatura; ?>" name="curerentTemp">
+		<input type="hidden" value="<?php echo $id; ?>" name="id">
+		<input type="hidden" name="fecha" value="<?php echo $fecha; ?>">
+		<input type="hidden" name="hora" value="<?php echo $hora;?>">
+		<!--<input type="hidden" value="<?php echo json_encode($customFields); ?>" name="booking">-->
+		<?php echo submit_button('Actualizar');?>
+    </form>
+<?php
+}
+
+
+/*function updateBooking($id, $currentTemp, $temp, $booking){
 	global $wpdb;
 	$table = $wpdb->prefix . 'amelia_customer_bookings';
 
@@ -182,7 +148,4 @@ function updateBooking($id, $currentTemp, $temp, $booking){
 	$newResult = $wpdb->get_results($queryUpdate);
 
 	return $newResult;
-}
-
-/*$boo = updateBooking(20, 50, $resQuery[0]->customFields);
-			print_r($boo);*/
+}*/
